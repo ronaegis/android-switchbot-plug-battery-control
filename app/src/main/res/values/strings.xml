@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">SwitchBot Battery Charger</string>
+    <string name="mac_address_hint">SwitchBot MAC Address (XX:XX:XX:XX:XX:XX)</string>
+    <string name="low_threshold_label">Low Battery Threshold (%)</string>
+    <string name="high_threshold_label">High Battery Threshold (%)</string>
+    <string name="save_and_start">Save &amp; Start Service</string>
+    <string name="notification_title">Battery Charger Active</string>
+    <string name="notification_channel_name">Battery Monitor</string>
+    <string name="notification_channel_desc">Monitors battery level and controls smart plug</string>
+</resources>
