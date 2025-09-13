@@ -2,6 +2,8 @@ package com.switchbot.batterycharger
 
 import android.Manifest
 import android.app.ActivityManager
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -101,17 +103,16 @@ class MainActivity : AppCompatActivity() {
                     putBoolean("charging_on", false)
                 }.apply()
                 
-                // Start the battery monitor service
-                val serviceIntent = Intent(this, BatteryMonitorService::class.java)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(serviceIntent)
+                // Check if device is bonded, if not bond it first before starting service
+                if (!isDeviceBonded(mac.uppercase())) {
+                    Toast.makeText(this, "Bonding device first...", Toast.LENGTH_SHORT).show()
+                    bondDeviceAndStartService(mac.uppercase(), saveBtn)
                 } else {
-                    startService(serviceIntent)
+                    startBatteryMonitorService()
+                    Toast.makeText(this, "Service started! App will now monitor battery.", Toast.LENGTH_LONG).show()
+                    updateButtonState(saveBtn)
+                    finish()
                 }
-                
-                Toast.makeText(this, "Service started! App will now monitor battery.", Toast.LENGTH_LONG).show()
-                updateButtonState(saveBtn)
-                finish()
             }
         }
         
@@ -249,7 +250,14 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun isServiceRunning(): Boolean {
-        return prefs.getBoolean("service_running", false)
+        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        @Suppress("DEPRECATION")
+        for (service in activityManager.getRunningServices(Integer.MAX_VALUE)) {
+            if (BatteryMonitorService::class.java.name == service.service.className) {
+                return true
+            }
+        }
+        return false
     }
     
     private fun updateButtonState(button: Button) {
@@ -259,6 +267,49 @@ class MainActivity : AppCompatActivity() {
         } else {
             button.text = getString(R.string.save_and_start)
             button.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_blue_bright))
+        }
+    }
+    
+    private fun isDeviceBonded(mac: String): Boolean {
+        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        val bluetoothAdapter = bluetoothManager.adapter ?: return false
+        
+        if (bluetoothAdapter.isEnabled) {
+            try {
+                @Suppress("MissingPermission")
+                val bondedDevices = bluetoothAdapter.bondedDevices
+                return bondedDevices.any { it.address.equals(mac, ignoreCase = true) }
+            } catch (e: SecurityException) {
+                // Permissions not available
+                return false
+            }
+        }
+        return false
+    }
+    
+    private fun bondDeviceAndStartService(mac: String, button: Button) {
+        // Use BleManager with foreground flag to bond the device
+        BleManager.sendCommand(this, mac, true, { success ->
+            runOnUiThread {
+                if (success) {
+                    Toast.makeText(this, "Device bonded successfully! Starting service...", Toast.LENGTH_SHORT).show()
+                    startBatteryMonitorService()
+                    Toast.makeText(this, "Service started! App will now monitor battery.", Toast.LENGTH_LONG).show()
+                    updateButtonState(button)
+                    finish()
+                } else {
+                    Toast.makeText(this, "Failed to bond device. Please check if device is nearby and try again.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }, fromForeground = true)
+    }
+    
+    private fun startBatteryMonitorService() {
+        val serviceIntent = Intent(this, BatteryMonitorService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
         }
     }
 }
