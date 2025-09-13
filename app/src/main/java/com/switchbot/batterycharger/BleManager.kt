@@ -19,15 +19,9 @@ object BleManager {
     private val SERVICE_UUID = UUID.fromString("cba20d00-224d-11e6-9fb8-0002a5d5c51b")
     private val WRITE_CHAR_UUID = UUID.fromString("cba20002-224d-11e6-9fb8-0002a5d5c51b")
     
-    // SwitchBot command bytes
-    private val ON_BYTES = byteArrayOf(
-        0x57.toByte(), 0x0F.toByte(), 0x43.toByte(), 0x31.toByte(), 
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    )
-    private val OFF_BYTES = byteArrayOf(
-        0x57.toByte(), 0x0F.toByte(), 0x43.toByte(), 0x30.toByte(), 
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    )
+    // SwitchBot command bytes (matching working Python script)
+    private val ON_BYTES = byteArrayOf(0x57.toByte(), 0x01.toByte(), 0x01.toByte())
+    private val OFF_BYTES = byteArrayOf(0x57.toByte(), 0x01.toByte(), 0x02.toByte())
     
     private const val CONNECTION_TIMEOUT_MS = 10000L
     private const val SCAN_TIMEOUT_MS = 15000L
