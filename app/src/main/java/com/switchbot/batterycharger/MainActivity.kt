@@ -127,7 +127,7 @@ class MainActivity : AppCompatActivity() {
             testOnBtn.isEnabled = false
             testOffBtn.isEnabled = false
             
-            BleManager.sendCommand(this, mac.uppercase(), true) { success ->
+            BleManager.sendCommand(this, mac.uppercase(), true, { success ->
                 runOnUiThread {
                     if (success) {
                         statusText.text = "Status: ON command sent successfully"
@@ -139,7 +139,7 @@ class MainActivity : AppCompatActivity() {
                     testOnBtn.isEnabled = true
                     testOffBtn.isEnabled = true
                 }
-            }
+            }, fromForeground = true)
         }
         
         testOffBtn.setOnClickListener {
@@ -153,7 +153,7 @@ class MainActivity : AppCompatActivity() {
             testOnBtn.isEnabled = false
             testOffBtn.isEnabled = false
             
-            BleManager.sendCommand(this, mac.uppercase(), false) { success ->
+            BleManager.sendCommand(this, mac.uppercase(), false, { success ->
                 runOnUiThread {
                     if (success) {
                         statusText.text = "Status: OFF command sent successfully"
@@ -165,7 +165,7 @@ class MainActivity : AppCompatActivity() {
                     testOnBtn.isEnabled = true
                     testOffBtn.isEnabled = true
                 }
-            }
+            }, fromForeground = true)
         }
     }
     

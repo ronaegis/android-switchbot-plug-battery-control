@@ -41,6 +41,7 @@ object BleManager {
     private var retryCount = 0
     private var currentMac: String? = null
     private var currentTurnOn: Boolean = false
+    private var currentFromForeground: Boolean = false
     @SuppressLint("StaticFieldLeak")
     private var currentContext: Context? = null
     
@@ -58,8 +59,8 @@ object BleManager {
         }
     }
     
-    fun sendCommand(context: Context, mac: String, turnOn: Boolean, callback: (Boolean) -> Unit) {
-        Log.d(TAG, "Sending command to $mac: ${if (turnOn) "ON" else "OFF"}")
+    fun sendCommand(context: Context, mac: String, turnOn: Boolean, callback: (Boolean) -> Unit, fromForeground: Boolean = false) {
+        Log.d(TAG, "Sending command to $mac: ${if (turnOn) "ON" else "OFF"} (from: ${if (fromForeground) "FOREGROUND" else "BACKGROUND"})")
         
         // Check for required permissions
         if (!hasBluetoothPermissions(context)) {
@@ -71,6 +72,7 @@ object BleManager {
         currentCallback = callback
         currentMac = mac
         currentTurnOn = turnOn
+        currentFromForeground = fromForeground
         currentContext = context.applicationContext
         retryCount = 0
         
@@ -82,7 +84,7 @@ object BleManager {
             return
         }
         
-        attemptConnection(context, mac, turnOn)
+        attemptConnection(context, mac, turnOn, fromForeground)
     }
     
     private fun initBluetoothAdapter(context: Context) {
@@ -94,7 +96,7 @@ object BleManager {
     }
     
     @SuppressLint("MissingPermission")
-    private fun attemptConnection(context: Context, mac: String, turnOn: Boolean) {
+    private fun attemptConnection(context: Context, mac: String, turnOn: Boolean, fromForeground: Boolean = false) {
         // First try to connect to bonded device  
         val bondedDevice = bluetoothAdapter?.bondedDevices?.find { it.address.equals(mac, ignoreCase = true) }
         
@@ -102,8 +104,8 @@ object BleManager {
             Log.d(TAG, "Found bonded device, connecting directly")
             connectToDevice(context, bondedDevice, turnOn)
         } else {
-            // For Android 15+, avoid background scanning - try to bond first
-            if (Build.VERSION.SDK_INT >= 35) {
+            // For Android 15+, restrict background scanning only (allow foreground scanning)
+            if (Build.VERSION.SDK_INT >= 35 && !fromForeground) {
                 Log.w(TAG, "Device not bonded and Android 15+ detected - background scanning restricted")
                 Log.i(TAG, "Please bond the device in foreground first using the test buttons")
                 handleFailure()
@@ -289,7 +291,7 @@ object BleManager {
             handler.postDelayed({
                 currentMac?.let { mac ->
                     currentContext?.let { context ->
-                        attemptConnection(context, mac, currentTurnOn)
+                        attemptConnection(context, mac, currentTurnOn, currentFromForeground)
                     }
                 }
             }, RETRY_DELAY_MS)
@@ -312,6 +314,7 @@ object BleManager {
         cleanupConnection()
         currentCallback = null
         currentMac = null
+        currentFromForeground = false
         currentContext = null
         retryCount = 0
     }

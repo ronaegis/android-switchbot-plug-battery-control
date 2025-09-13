@@ -135,7 +135,7 @@ class BatteryMonitorService : Service() {
         Log.i(TAG, "🔌 STARTUP: Setting initial plug state to ${if (shouldBeOn) "ON" else "OFF"}")
         Log.d(TAG, "🔌 STARTUP: Sending ${if (shouldBeOn) "ON" else "OFF"} command to SwitchBot Mini Plug at MAC: $mac")
         val startTime = System.currentTimeMillis()
-        BleManager.sendCommand(this, mac, shouldBeOn) { success ->
+        BleManager.sendCommand(this, mac, shouldBeOn, { success ->
             val duration = System.currentTimeMillis() - startTime
             if (success) {
                 prefs.edit().putBoolean("charging_on", shouldBeOn).apply()
@@ -145,7 +145,7 @@ class BatteryMonitorService : Service() {
                 Log.e(TAG, "❌ STARTUP: Failed to set initial plug state after ${duration}ms")
                 Log.e(TAG, "🔌 STARTUP: SwitchBot Mini Plug command failed - check bonding or proximity")
             }
-        }
+        }, fromForeground = false)
         
         // Update notification with initial status
         updateNotification(batteryPct, shouldBeOn)
@@ -182,7 +182,7 @@ class BatteryMonitorService : Service() {
                         Log.i(TAG, "🔋⬇️ BACKGROUND: Battery low ($batteryPct% <= $low%), attempting to turn ON charger")
                         Log.d(TAG, "🔌 BACKGROUND: Sending ON command to SwitchBot Mini Plug at MAC: $mac")
                         val startTime = System.currentTimeMillis()
-                        BleManager.sendCommand(context!!, mac, true) { success ->
+                        BleManager.sendCommand(context!!, mac, true, { success ->
                             val duration = System.currentTimeMillis() - startTime
                             if (success) {
                                 prefs.edit().putBoolean("charging_on", true).apply()
@@ -192,14 +192,14 @@ class BatteryMonitorService : Service() {
                                 Log.e(TAG, "❌ BACKGROUND: Failed to turn ON charger after ${duration}ms")
                                 Log.e(TAG, "🔌 BACKGROUND: SwitchBot Mini Plug command failed - check bonding or proximity")
                             }
-                        }
+                        }, fromForeground = false)
                     }
                     
                     batteryPct >= high -> {
                         Log.i(TAG, "🔋⬆️ BACKGROUND: Battery high ($batteryPct% >= $high%), attempting to turn OFF charger")
                         Log.d(TAG, "🔌 BACKGROUND: Sending OFF command to SwitchBot Mini Plug at MAC: $mac")
                         val startTime = System.currentTimeMillis()
-                        BleManager.sendCommand(context!!, mac, false) { success ->
+                        BleManager.sendCommand(context!!, mac, false, { success ->
                             val duration = System.currentTimeMillis() - startTime
                             if (success) {
                                 prefs.edit().putBoolean("charging_on", false).apply()
@@ -209,7 +209,7 @@ class BatteryMonitorService : Service() {
                                 Log.e(TAG, "❌ BACKGROUND: Failed to turn OFF charger after ${duration}ms")
                                 Log.e(TAG, "🔌 BACKGROUND: SwitchBot Mini Plug command failed - check bonding or proximity")
                             }
-                        }
+                        }, fromForeground = false)
                     }
                     
                     else -> {
