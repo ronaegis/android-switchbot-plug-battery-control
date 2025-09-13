@@ -43,6 +43,9 @@ class BatteryMonitorService : Service() {
         val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
         registerReceiver(receiver, filter)
         
+        // Set initial plug state based on current battery level
+        setInitialPlugState()
+        
         return START_STICKY
     }
     
@@ -97,6 +100,51 @@ class BatteryMonitorService : Service() {
             .build()
     }
     
+    private fun setInitialPlugState() {
+        Log.d(TAG, "Setting initial plug state based on current battery level")
+        
+        // Get current battery level
+        val batteryStatus = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        if (batteryStatus == null) {
+            Log.w(TAG, "Could not get battery status for initial state")
+            return
+        }
+        
+        val level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+        val batteryPct = (level.toFloat() / scale.toFloat() * 100).toInt()
+        
+        val low = prefs.getInt("low", 20)
+        val high = prefs.getInt("high", 80)
+        val mac = prefs.getString("mac", "")
+        
+        if (mac.isNullOrEmpty()) {
+            Log.w(TAG, "MAC address not configured, skipping initial plug state")
+            return
+        }
+        
+        Log.i(TAG, "Initial battery level: $batteryPct%, thresholds: $low%-$high%")
+        
+        // Determine and set initial plug state based on battery level (always send command)
+        val shouldBeOn = batteryPct <= low
+        
+        Log.i(TAG, "Initial plug should be: ${if (shouldBeOn) "ON" else "OFF"} (battery: $batteryPct%)")
+        
+        // Always send command to ensure plug is in correct state
+        Log.i(TAG, "Setting initial plug state to ${if (shouldBeOn) "ON" else "OFF"}")
+        BleManager.sendCommand(this, mac, shouldBeOn) { success ->
+            if (success) {
+                prefs.edit().putBoolean("charging_on", shouldBeOn).apply()
+                Log.i(TAG, "Initial plug state set successfully to ${if (shouldBeOn) "ON" else "OFF"}")
+            } else {
+                Log.e(TAG, "Failed to set initial plug state")
+            }
+        }
+        
+        // Update notification with initial status
+        updateNotification(batteryPct, shouldBeOn)
+    }
+    
     inner class BatteryReceiver : BroadcastReceiver() {
         private var lastLevel = -1
         
@@ -121,9 +169,9 @@ class BatteryMonitorService : Service() {
                     return
                 }
                 
-                // Check thresholds with hysteresis
+                // Send commands based on battery thresholds (ignore current plug state)
                 when {
-                    batteryPct <= low && !isChargingOn -> {
+                    batteryPct <= low -> {
                         Log.i(TAG, "Battery low ($batteryPct% <= $low%), turning ON charger")
                         BleManager.sendCommand(context!!, mac, true) { success ->
                             if (success) {
@@ -135,7 +183,7 @@ class BatteryMonitorService : Service() {
                         }
                     }
                     
-                    batteryPct >= high && isChargingOn -> {
+                    batteryPct >= high -> {
                         Log.i(TAG, "Battery high ($batteryPct% >= $high%), turning OFF charger")
                         BleManager.sendCommand(context!!, mac, false) { success ->
                             if (success) {
@@ -148,7 +196,7 @@ class BatteryMonitorService : Service() {
                     }
                     
                     else -> {
-                        Log.d(TAG, "Battery level $batteryPct% - no action needed")
+                        Log.d(TAG, "Battery level $batteryPct% - between thresholds, no action needed")
                     }
                 }
                 
