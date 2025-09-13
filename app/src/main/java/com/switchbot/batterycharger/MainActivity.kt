@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -29,6 +30,9 @@ class MainActivity : AppCompatActivity() {
         val lowEdit = findViewById<EditText>(R.id.low_edit)
         val highEdit = findViewById<EditText>(R.id.high_edit)
         val saveBtn = findViewById<Button>(R.id.save_btn)
+        val testOnBtn = findViewById<Button>(R.id.test_on_btn)
+        val testOffBtn = findViewById<Button>(R.id.test_off_btn)
+        val statusText = findViewById<TextView>(R.id.status_text)
         
         // Load existing settings
         macEdit.setText(prefs.getString("mac", ""))
@@ -82,6 +86,59 @@ class MainActivity : AppCompatActivity() {
             
             Toast.makeText(this, "Service started! App will now monitor battery.", Toast.LENGTH_LONG).show()
             finish()
+        }
+        
+        // Test button handlers
+        testOnBtn.setOnClickListener {
+            val mac = macEdit.text.toString().trim()
+            if (mac.isEmpty() || !isValidMacAddress(mac)) {
+                Toast.makeText(this, "Please enter a valid MAC address first", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            
+            statusText.text = "Status: Connecting..."
+            testOnBtn.isEnabled = false
+            testOffBtn.isEnabled = false
+            
+            BleManager.sendCommand(this, mac.uppercase(), true) { success ->
+                runOnUiThread {
+                    if (success) {
+                        statusText.text = "Status: ON command sent successfully"
+                        Toast.makeText(this, "Plug turned ON", Toast.LENGTH_SHORT).show()
+                    } else {
+                        statusText.text = "Status: Failed to send ON command"
+                        Toast.makeText(this, "Failed to connect or send command", Toast.LENGTH_SHORT).show()
+                    }
+                    testOnBtn.isEnabled = true
+                    testOffBtn.isEnabled = true
+                }
+            }
+        }
+        
+        testOffBtn.setOnClickListener {
+            val mac = macEdit.text.toString().trim()
+            if (mac.isEmpty() || !isValidMacAddress(mac)) {
+                Toast.makeText(this, "Please enter a valid MAC address first", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            
+            statusText.text = "Status: Connecting..."
+            testOnBtn.isEnabled = false
+            testOffBtn.isEnabled = false
+            
+            BleManager.sendCommand(this, mac.uppercase(), false) { success ->
+                runOnUiThread {
+                    if (success) {
+                        statusText.text = "Status: OFF command sent successfully"
+                        Toast.makeText(this, "Plug turned OFF", Toast.LENGTH_SHORT).show()
+                    } else {
+                        statusText.text = "Status: Failed to send OFF command"
+                        Toast.makeText(this, "Failed to connect or send command", Toast.LENGTH_SHORT).show()
+                    }
+                    testOnBtn.isEnabled = true
+                    testOffBtn.isEnabled = true
+                }
+            }
         }
     }
     
