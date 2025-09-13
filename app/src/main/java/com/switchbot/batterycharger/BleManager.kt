@@ -102,6 +102,14 @@ object BleManager {
             Log.d(TAG, "Found bonded device, connecting directly")
             connectToDevice(context, bondedDevice, turnOn)
         } else {
+            // For Android 15+, avoid background scanning - try to bond first
+            if (Build.VERSION.SDK_INT >= 35) {
+                Log.w(TAG, "Device not bonded and Android 15+ detected - background scanning restricted")
+                Log.i(TAG, "Please bond the device in foreground first using the test buttons")
+                handleFailure()
+                return
+            }
+            
             Log.d(TAG, "Device not bonded, scanning for device")
             scanForDevice(context, mac, turnOn)
         }
@@ -161,6 +169,12 @@ object BleManager {
     @SuppressLint("MissingPermission")
     private fun connectToDevice(context: Context, device: BluetoothDevice, turnOn: Boolean) {
         cleanupConnection()
+        
+        // Attempt to bond the device if not already bonded (helps with future background connections)
+        if (device.bondState == BluetoothDevice.BOND_NONE) {
+            Log.d(TAG, "Device not bonded, attempting to bond")
+            device.createBond()
+        }
         
         val gattCallback = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {

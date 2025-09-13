@@ -1,5 +1,6 @@
 package com.switchbot.batterycharger
 
+import android.app.ActivityManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -131,13 +132,18 @@ class BatteryMonitorService : Service() {
         Log.i(TAG, "Initial plug should be: ${if (shouldBeOn) "ON" else "OFF"} (battery: $batteryPct%)")
         
         // Always send command to ensure plug is in correct state
-        Log.i(TAG, "Setting initial plug state to ${if (shouldBeOn) "ON" else "OFF"}")
+        Log.i(TAG, "🔌 STARTUP: Setting initial plug state to ${if (shouldBeOn) "ON" else "OFF"}")
+        Log.d(TAG, "🔌 STARTUP: Sending ${if (shouldBeOn) "ON" else "OFF"} command to SwitchBot Mini Plug at MAC: $mac")
+        val startTime = System.currentTimeMillis()
         BleManager.sendCommand(this, mac, shouldBeOn) { success ->
+            val duration = System.currentTimeMillis() - startTime
             if (success) {
                 prefs.edit().putBoolean("charging_on", shouldBeOn).apply()
-                Log.i(TAG, "Initial plug state set successfully to ${if (shouldBeOn) "ON" else "OFF"}")
+                Log.i(TAG, "✅ STARTUP: Initial plug state set successfully to ${if (shouldBeOn) "ON" else "OFF"} in ${duration}ms")
+                Log.i(TAG, "🔌 STARTUP: SwitchBot Mini Plug should now be ${if (shouldBeOn) "ON" else "OFF"}")
             } else {
-                Log.e(TAG, "Failed to set initial plug state")
+                Log.e(TAG, "❌ STARTUP: Failed to set initial plug state after ${duration}ms")
+                Log.e(TAG, "🔌 STARTUP: SwitchBot Mini Plug command failed - check bonding or proximity")
             }
         }
         
@@ -162,7 +168,8 @@ class BatteryMonitorService : Service() {
                 val mac = prefs.getString("mac", "") ?: return
                 val isChargingOn = prefs.getBoolean("charging_on", false)
                 
-                Log.d(TAG, "Battery level: $batteryPct%, charging: $isChargingOn, low: $low%, high: $high%")
+                val isAppInForeground = isAppInForeground()
+                Log.d(TAG, "🔋 Battery level: $batteryPct%, charging: $isChargingOn, low: $low%, high: $high%, app: ${if (isAppInForeground) "FOREGROUND" else "BACKGROUND"}")
                 
                 if (mac.isEmpty()) {
                     Log.w(TAG, "MAC address not configured")
@@ -172,31 +179,41 @@ class BatteryMonitorService : Service() {
                 // Send commands based on battery thresholds (ignore current plug state)
                 when {
                     batteryPct <= low -> {
-                        Log.i(TAG, "Battery low ($batteryPct% <= $low%), turning ON charger")
+                        Log.i(TAG, "🔋⬇️ BACKGROUND: Battery low ($batteryPct% <= $low%), attempting to turn ON charger")
+                        Log.d(TAG, "🔌 BACKGROUND: Sending ON command to SwitchBot Mini Plug at MAC: $mac")
+                        val startTime = System.currentTimeMillis()
                         BleManager.sendCommand(context!!, mac, true) { success ->
+                            val duration = System.currentTimeMillis() - startTime
                             if (success) {
                                 prefs.edit().putBoolean("charging_on", true).apply()
-                                Log.i(TAG, "Charger turned ON successfully")
+                                Log.i(TAG, "✅ BACKGROUND: Charger turned ON successfully in ${duration}ms")
+                                Log.i(TAG, "🔌 BACKGROUND: SwitchBot Mini Plug should now be ON - charging enabled")
                             } else {
-                                Log.e(TAG, "Failed to turn ON charger")
+                                Log.e(TAG, "❌ BACKGROUND: Failed to turn ON charger after ${duration}ms")
+                                Log.e(TAG, "🔌 BACKGROUND: SwitchBot Mini Plug command failed - check bonding or proximity")
                             }
                         }
                     }
                     
                     batteryPct >= high -> {
-                        Log.i(TAG, "Battery high ($batteryPct% >= $high%), turning OFF charger")
+                        Log.i(TAG, "🔋⬆️ BACKGROUND: Battery high ($batteryPct% >= $high%), attempting to turn OFF charger")
+                        Log.d(TAG, "🔌 BACKGROUND: Sending OFF command to SwitchBot Mini Plug at MAC: $mac")
+                        val startTime = System.currentTimeMillis()
                         BleManager.sendCommand(context!!, mac, false) { success ->
+                            val duration = System.currentTimeMillis() - startTime
                             if (success) {
                                 prefs.edit().putBoolean("charging_on", false).apply()
-                                Log.i(TAG, "Charger turned OFF successfully")
+                                Log.i(TAG, "✅ BACKGROUND: Charger turned OFF successfully in ${duration}ms")
+                                Log.i(TAG, "🔌 BACKGROUND: SwitchBot Mini Plug should now be OFF - charging disabled")
                             } else {
-                                Log.e(TAG, "Failed to turn OFF charger")
+                                Log.e(TAG, "❌ BACKGROUND: Failed to turn OFF charger after ${duration}ms")
+                                Log.e(TAG, "🔌 BACKGROUND: SwitchBot Mini Plug command failed - check bonding or proximity")
                             }
                         }
                     }
                     
                     else -> {
-                        Log.d(TAG, "Battery level $batteryPct% - between thresholds, no action needed")
+                        Log.d(TAG, "🔋➡️ BACKGROUND: Battery level $batteryPct% - between thresholds ($low%-$high%), no action needed")
                     }
                 }
                 
@@ -234,5 +251,26 @@ class BatteryMonitorService : Service() {
             
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notification)
+    }
+    
+    @Suppress("DEPRECATION")
+    private fun isAppInForeground(): Boolean {
+        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        
+        // For newer Android versions, use a simpler check
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // We can't reliably detect foreground state on Android 10+, so just return false (background)
+            return false
+        }
+        
+        val appProcesses = activityManager.runningAppProcesses ?: return false
+        val packageName = packageName
+        
+        for (appProcess in appProcesses) {
+            if (appProcess.processName == packageName) {
+                return appProcess.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+            }
+        }
+        return false
     }
 }
