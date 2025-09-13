@@ -9,6 +9,10 @@ A lightweight Android app that automatically controls a SwitchBot Smart Plug Min
 - **Configurable Thresholds**: Set custom low/high battery percentages (default: 20%/80%)
 - **BLE Direct Control**: Uses reverse-engineered SwitchBot protocol for local control
 - **Persistent Operation**: Runs as foreground service with minimal battery impact
+- **High-Priority Notifications**: Real-time status display with battery level and charging indicators
+- **Manual Test Controls**: Test ON/OFF commands directly from the app
+- **Service Toggle**: Start/stop battery monitoring service with visual feedback
+- **Auto-Start at Boot**: Automatically begin monitoring after device restart
 - **No Internet Required**: 100% offline operation
 
 ## Requirements
@@ -64,24 +68,31 @@ Use a Bluetooth scanner app (like nRF Connect) to find your SwitchBot Smart Plug
 3. Set battery thresholds:
    - **Low Threshold**: Battery percentage to start charging (default: 20%)
    - **High Threshold**: Battery percentage to stop charging (default: 80%)
-4. Tap "Save & Start Service"
-5. Grant required permissions when prompted
-6. Allow the app to ignore battery optimization for reliable operation
+4. **Optional**: Enable "🚀 Auto-start at boot" to automatically start monitoring after device restart
+5. Tap "Save & Start Service" (or "🛑 Stop Running Service" if already running)
+6. Grant required permissions when prompted:
+   - Bluetooth permissions (BLUETOOTH_CONNECT, BLUETOOTH_SCAN, etc.)
+   - Location permission (required for BLE scanning)
+   - Notification permission (for Android 13+)
+7. Allow the app to ignore battery optimization for reliable operation
 
 ### 3. Verify Operation
 
-- Check notification area for "Battery Charger Active" 
-- Monitor logcat for debug messages: `adb logcat | grep BatteryMonitor`
-- Test by adjusting battery level near thresholds
+- **Notification**: Check for persistent notification "🔋 SwitchBot Battery Monitor ACTIVE"
+- **Real-time Status**: Notification shows current battery level, charging status, and thresholds
+- **Manual Testing**: Use "Test ON" and "Test OFF" buttons to verify BLE communication
+- **Debug Logs**: Monitor logcat: `adb logcat | grep BatteryMonitor`
+- **Threshold Testing**: Adjust battery level near configured thresholds to verify automatic switching
 
 ## App Architecture
 
 ### Key Components
 
-- **MainActivity**: One-time setup UI for configuration
-- **BatteryMonitorService**: Foreground service that monitors battery changes
-- **BleManager**: Handles Bluetooth Low Energy communication with SwitchBot
-- **BatteryReceiver**: Broadcast receiver for battery level changes
+- **MainActivity**: Setup UI with configuration, manual testing, and service control
+- **BatteryMonitorService**: Foreground service that monitors battery changes with rich notifications
+- **BleManager**: Handles Bluetooth Low Energy communication with SwitchBot plug
+- **BatteryReceiver**: Broadcast receiver for battery level changes (within service)
+- **BootReceiver**: Automatically starts service on device boot (if enabled)
 
 ### Data Flow
 
@@ -99,8 +110,8 @@ Use a Bluetooth scanner app (like nRF Connect) to find your SwitchBot Smart Plug
 - **Write Characteristic**: `cba20002-224d-11e6-9fb8-0002a5d5c51b`
 
 **Commands**:
-- **Turn ON**: `57 0F 43 31 00 00 00 00 00 00 00 00 00 00 00 00`
-- **Turn OFF**: `57 0F 43 30 00 00 00 00 00 00 00 00 00 00 00 00`
+- **Turn ON**: `57 01 01` (3 bytes)
+- **Turn OFF**: `57 01 02` (3 bytes)
 
 ### Connection Process
 
@@ -118,15 +129,19 @@ Settings are stored in SharedPreferences (`config`):
 - `low`: Low battery threshold percentage
 - `high`: High battery threshold percentage  
 - `charging_on`: Current charging state
+- `auto_start`: Auto-start at boot enabled/disabled
 
 ## Permissions
 
 Required permissions explained:
 
-- `BLUETOOTH` + `BLUETOOTH_ADMIN`: BLE communication
-- `ACCESS_FINE_LOCATION`: Required for BLE scanning on Android 6+
+- `BLUETOOTH` + `BLUETOOTH_ADMIN`: BLE communication (legacy)
+- `BLUETOOTH_CONNECT` + `BLUETOOTH_SCAN` + `BLUETOOTH_ADVERTISE`: Modern BLE permissions (Android 12+)
+- `ACCESS_FINE_LOCATION` + `ACCESS_COARSE_LOCATION`: Required for BLE scanning
 - `FOREGROUND_SERVICE`: Run persistent background service
 - `FOREGROUND_SERVICE_CONNECTED_DEVICE`: Specify service type for Android 14+
+- `POST_NOTIFICATIONS`: Display notifications (Android 13+)
+- `RECEIVE_BOOT_COMPLETED`: Auto-start service at boot
 
 ## Troubleshooting
 
@@ -150,6 +165,12 @@ Required permissions explained:
    - Disable battery optimization for the app
    - Check if device has aggressive power management
    - Verify app has all required permissions
+   - Enable auto-start at boot for automatic restart after reboot
+
+5. **Notifications not visible**
+   - Grant notification permission for the app
+   - Check notification channel settings in Android Settings
+   - Ensure notifications are not disabled for the app
 
 ### Debug Commands
 

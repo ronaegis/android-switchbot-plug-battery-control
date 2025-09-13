@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
+import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -30,6 +31,7 @@ class MainActivity : AppCompatActivity() {
         val macEdit = findViewById<EditText>(R.id.mac_edit)
         val lowEdit = findViewById<EditText>(R.id.low_edit)
         val highEdit = findViewById<EditText>(R.id.high_edit)
+        val autoStartSwitch = findViewById<Switch>(R.id.auto_start_switch)
         val saveBtn = findViewById<Button>(R.id.save_btn)
         val testOnBtn = findViewById<Button>(R.id.test_on_btn)
         val testOffBtn = findViewById<Button>(R.id.test_off_btn)
@@ -39,6 +41,7 @@ class MainActivity : AppCompatActivity() {
         macEdit.setText(prefs.getString("mac", ""))
         lowEdit.setText(prefs.getInt("low", 20).toString())
         highEdit.setText(prefs.getInt("high", 80).toString())
+        autoStartSwitch.isChecked = prefs.getBoolean("auto_start", false)
         
         // Update button text based on service status
         updateButtonState(saveBtn)
@@ -48,6 +51,17 @@ class MainActivity : AppCompatActivity() {
         
         // Request battery optimization exemption
         requestBatteryOptimizationExemption()
+        
+        // Auto-start switch listener
+        autoStartSwitch.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("auto_start", isChecked).apply()
+            val message = if (isChecked) {
+                "✅ Auto-start enabled - Service will start automatically at boot"
+            } else {
+                "❌ Auto-start disabled"
+            }
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        }
         
         saveBtn.setOnClickListener {
             if (isServiceRunning()) {
@@ -159,7 +173,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         // Update button state when activity resumes
         val saveBtn = findViewById<Button>(R.id.save_btn)
+        val autoStartSwitch = findViewById<Switch>(R.id.auto_start_switch)
         updateButtonState(saveBtn)
+        autoStartSwitch.isChecked = prefs.getBoolean("auto_start", false)
     }
     
     private fun checkPermissions() {
