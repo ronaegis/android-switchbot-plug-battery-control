@@ -1,6 +1,7 @@
 package com.switchbot.batterycharger
 
 import android.Manifest
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -39,6 +40,9 @@ class MainActivity : AppCompatActivity() {
         lowEdit.setText(prefs.getInt("low", 20).toString())
         highEdit.setText(prefs.getInt("high", 80).toString())
         
+        // Update button text based on service status
+        updateButtonState(saveBtn)
+        
         // Check and request permissions
         checkPermissions()
         
@@ -46,46 +50,55 @@ class MainActivity : AppCompatActivity() {
         requestBatteryOptimizationExemption()
         
         saveBtn.setOnClickListener {
-            val mac = macEdit.text.toString().trim()
-            val lowText = lowEdit.text.toString().trim()
-            val highText = highEdit.text.toString().trim()
-            
-            if (mac.isEmpty()) {
-                Toast.makeText(this, "Please enter MAC address", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            
-            if (!isValidMacAddress(mac)) {
-                Toast.makeText(this, "Invalid MAC address format", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            
-            val low = lowText.toIntOrNull() ?: 20
-            val high = highText.toIntOrNull() ?: 80
-            
-            if (low >= high || low < 0 || high > 100) {
-                Toast.makeText(this, "Invalid thresholds. Low must be < High, and both 0-100%", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            
-            // Save configuration
-            prefs.edit().apply {
-                putString("mac", mac.uppercase())
-                putInt("low", low)
-                putInt("high", high)
-                putBoolean("charging_on", false)
-            }.apply()
-            
-            // Start the battery monitor service
-            val serviceIntent = Intent(this, BatteryMonitorService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
+            if (isServiceRunning()) {
+                // Stop the service
+                stopService(Intent(this, BatteryMonitorService::class.java))
+                Toast.makeText(this, "Service stopped. Battery monitoring disabled.", Toast.LENGTH_LONG).show()
+                updateButtonState(saveBtn)
             } else {
-                startService(serviceIntent)
+                // Start the service - validate input first
+                val mac = macEdit.text.toString().trim()
+                val lowText = lowEdit.text.toString().trim()
+                val highText = highEdit.text.toString().trim()
+                
+                if (mac.isEmpty()) {
+                    Toast.makeText(this, "Please enter MAC address", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                
+                if (!isValidMacAddress(mac)) {
+                    Toast.makeText(this, "Invalid MAC address format", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                
+                val low = lowText.toIntOrNull() ?: 20
+                val high = highText.toIntOrNull() ?: 80
+                
+                if (low >= high || low < 0 || high > 100) {
+                    Toast.makeText(this, "Invalid thresholds. Low must be < High, and both 0-100%", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                
+                // Save configuration
+                prefs.edit().apply {
+                    putString("mac", mac.uppercase())
+                    putInt("low", low)
+                    putInt("high", high)
+                    putBoolean("charging_on", false)
+                }.apply()
+                
+                // Start the battery monitor service
+                val serviceIntent = Intent(this, BatteryMonitorService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent)
+                } else {
+                    startService(serviceIntent)
+                }
+                
+                Toast.makeText(this, "Service started! App will now monitor battery.", Toast.LENGTH_LONG).show()
+                updateButtonState(saveBtn)
+                finish()
             }
-            
-            Toast.makeText(this, "Service started! App will now monitor battery.", Toast.LENGTH_LONG).show()
-            finish()
         }
         
         // Test button handlers
@@ -140,6 +153,13 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // Update button state when activity resumes
+        val saveBtn = findViewById<Button>(R.id.save_btn)
+        updateButtonState(saveBtn)
     }
     
     private fun checkPermissions() {
@@ -209,6 +229,27 @@ class MainActivity : AppCompatActivity() {
             if (deniedPermissions.isNotEmpty()) {
                 Toast.makeText(this, "Some permissions were denied. App may not work correctly.", Toast.LENGTH_LONG).show()
             }
+        }
+    }
+    
+    private fun isServiceRunning(): Boolean {
+        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        @Suppress("DEPRECATION")
+        for (service in activityManager.getRunningServices(Integer.MAX_VALUE)) {
+            if (BatteryMonitorService::class.java.name == service.service.className) {
+                return true
+            }
+        }
+        return false
+    }
+    
+    private fun updateButtonState(button: Button) {
+        if (isServiceRunning()) {
+            button.text = "🛑 Stop Running Service"
+            button.setBackgroundColor(getColor(android.R.color.holo_red_dark))
+        } else {
+            button.text = getString(R.string.save_and_start)
+            button.setBackgroundColor(getColor(android.R.color.holo_blue_bright))
         }
     }
 }
