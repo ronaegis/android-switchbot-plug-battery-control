@@ -249,23 +249,16 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun isServiceRunning(): Boolean {
-        val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        @Suppress("DEPRECATION")
-        for (service in activityManager.getRunningServices(Integer.MAX_VALUE)) {
-            if (BatteryMonitorService::class.java.name == service.service.className) {
-                return true
-            }
-        }
-        return false
+        return prefs.getBoolean("service_running", false)
     }
     
     private fun updateButtonState(button: Button) {
         if (isServiceRunning()) {
             button.text = "🛑 Stop Running Service"
-            button.setBackgroundColor(getColor(android.R.color.holo_red_dark))
+            button.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
         } else {
             button.text = getString(R.string.save_and_start)
-            button.setBackgroundColor(getColor(android.R.color.holo_blue_bright))
+            button.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_blue_bright))
         }
     }
 }

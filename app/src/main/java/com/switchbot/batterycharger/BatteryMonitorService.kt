@@ -33,6 +33,9 @@ class BatteryMonitorService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Service started")
         
+        // Mark service as running
+        prefs.edit().putBoolean("service_running", true).apply()
+        
         val notification = createNotification()
         startForeground(NOTIFICATION_ID, notification)
         
@@ -45,6 +48,10 @@ class BatteryMonitorService : Service() {
     
     override fun onDestroy() {
         Log.d(TAG, "Service destroyed")
+        
+        // Mark service as stopped
+        prefs.edit().putBoolean("service_running", false).apply()
+        
         try {
             unregisterReceiver(receiver)
         } catch (e: Exception) {

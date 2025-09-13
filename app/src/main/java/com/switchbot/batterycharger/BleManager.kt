@@ -1,5 +1,7 @@
 package com.switchbot.batterycharger
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
@@ -7,9 +9,12 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import androidx.core.content.ContextCompat
 import java.util.*
 
 object BleManager {
@@ -29,18 +34,39 @@ object BleManager {
     private const val RETRY_DELAY_MS = 5000L
     
     private var bluetoothAdapter: BluetoothAdapter? = null
+    private var bluetoothManager: BluetoothManager? = null
     private var scanner: BluetoothLeScanner? = null
     private var currentGatt: BluetoothGatt? = null
     private var currentCallback: ((Boolean) -> Unit)? = null
     private var retryCount = 0
     private var currentMac: String? = null
     private var currentTurnOn: Boolean = false
+    @SuppressLint("StaticFieldLeak")
     private var currentContext: Context? = null
     
     private val handler = Handler(Looper.getMainLooper())
     
+    private fun hasBluetoothPermissions(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12+ permissions
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
+        } else {
+            // Pre-Android 12 permissions
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADMIN) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+    
     fun sendCommand(context: Context, mac: String, turnOn: Boolean, callback: (Boolean) -> Unit) {
         Log.d(TAG, "Sending command to $mac: ${if (turnOn) "ON" else "OFF"}")
+        
+        // Check for required permissions
+        if (!hasBluetoothPermissions(context)) {
+            Log.e(TAG, "Missing required Bluetooth permissions")
+            callback(false)
+            return
+        }
         
         currentCallback = callback
         currentMac = mac
@@ -61,14 +87,15 @@ object BleManager {
     
     private fun initBluetoothAdapter(context: Context) {
         if (bluetoothAdapter == null) {
-            val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-            bluetoothAdapter = bluetoothManager.adapter
+            bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+            bluetoothAdapter = bluetoothManager?.adapter
             scanner = bluetoothAdapter?.bluetoothLeScanner
         }
     }
     
+    @SuppressLint("MissingPermission")
     private fun attemptConnection(context: Context, mac: String, turnOn: Boolean) {
-        // First try to connect to bonded device
+        // First try to connect to bonded device  
         val bondedDevice = bluetoothAdapter?.bondedDevices?.find { it.address.equals(mac, ignoreCase = true) }
         
         if (bondedDevice != null) {
@@ -80,6 +107,7 @@ object BleManager {
         }
     }
     
+    @SuppressLint("MissingPermission")
     private fun scanForDevice(context: Context, mac: String, turnOn: Boolean) {
         if (scanner == null) {
             Log.e(TAG, "Scanner is null")
@@ -130,6 +158,7 @@ object BleManager {
         }
     }
     
+    @SuppressLint("MissingPermission")
     private fun connectToDevice(context: Context, device: BluetoothDevice, turnOn: Boolean) {
         cleanupConnection()
         
@@ -195,7 +224,8 @@ object BleManager {
             
             // Set connection timeout
             handler.postDelayed({
-                if (currentGatt?.getConnectionState(device) != BluetoothProfile.STATE_CONNECTED) {
+                val connectionState = bluetoothManager?.getConnectionState(device, BluetoothProfile.GATT)
+                if (connectionState != BluetoothProfile.STATE_CONNECTED) {
                     Log.w(TAG, "Connection timeout")
                     cleanupConnection()
                     handleFailure()
@@ -210,14 +240,23 @@ object BleManager {
     
     private fun writeCommand(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, turnOn: Boolean) {
         val commandBytes = if (turnOn) ON_BYTES else OFF_BYTES
-        characteristic.value = commandBytes
         
         Log.d(TAG, "Writing command: ${commandBytes.joinToString(" ") { "%02X".format(it) }}")
         
         try {
-            val success = gatt.writeCharacteristic(characteristic)
-            if (!success) {
-                Log.e(TAG, "Failed to initiate write")
+            val success = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // Android 13+ (API 33+) - use new API
+                gatt.writeCharacteristic(characteristic, commandBytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            } else {
+                // Android 12 and below - use deprecated API
+                @Suppress("DEPRECATION")
+                characteristic.value = commandBytes
+                @Suppress("DEPRECATION")
+                gatt.writeCharacteristic(characteristic)
+            }
+            
+            if (success != BluetoothStatusCodes.SUCCESS && success != true) {
+                Log.e(TAG, "Failed to initiate write, status: $success")
                 handleFailure()
             }
         } catch (e: SecurityException) {
@@ -248,6 +287,7 @@ object BleManager {
         }
     }
     
+    @SuppressLint("MissingPermission")
     private fun cleanupConnection() {
         handler.removeCallbacksAndMessages(null)
         currentGatt?.close()
