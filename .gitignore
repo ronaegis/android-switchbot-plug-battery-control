@@ -1,0 +1,4 @@
+.gitignore
+.gradle
+app/build
+local.properties
