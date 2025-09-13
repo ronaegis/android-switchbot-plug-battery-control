@@ -59,11 +59,14 @@ class BatteryMonitorService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                getString(R.string.notification_channel_name),
-                NotificationManager.IMPORTANCE_LOW
+                "SwitchBot Battery Monitor",
+                NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = getString(R.string.notification_channel_desc)
-                setShowBadge(false)
+                description = "Shows battery monitoring status and charging control"
+                setShowBadge(true)
+                enableLights(true)
+                enableVibration(false)
+                setSound(null, null) // Silent but visible
             }
             
             val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -72,12 +75,18 @@ class BatteryMonitorService : Service() {
     }
     
     private fun createNotification(): Notification {
+        val mac = prefs.getString("mac", "Not configured") ?: "Not configured"
+        val shortMac = if (mac.length > 8) "...${mac.takeLast(8)}" else mac
+        
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText("Monitoring battery level...")
+            .setContentTitle("🔋 SwitchBot Battery Monitor ACTIVE")
+            .setContentText("Monitoring battery for Smart Plug $shortMac")
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(false)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setSound(null) // Silent but visible
             .build()
     }
     
@@ -143,13 +152,29 @@ class BatteryMonitorService : Service() {
     }
     
     private fun updateNotification(batteryLevel: Int, chargingOn: Boolean) {
-        val status = if (chargingOn) "Charging ON" else "Charging OFF"
+        val mac = prefs.getString("mac", "Not configured") ?: "Not configured"
+        val shortMac = if (mac.length > 8) "...${mac.takeLast(8)}" else mac
+        
+        val status = if (chargingOn) "⚡ ON" else "🔌 OFF"
+        val lowThreshold = prefs.getInt("low", 20)
+        val highThreshold = prefs.getInt("high", 80)
+        
+        // Add emoji indicator for battery level
+        val batteryEmoji = when {
+            batteryLevel <= 20 -> "🔴"
+            batteryLevel <= 50 -> "🟡" 
+            else -> "🟢"
+        }
+        
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.notification_title))
-            .setContentText("Battery: $batteryLevel% - $status")
+            .setContentTitle("🔋 SwitchBot Monitor - $batteryEmoji $batteryLevel%")
+            .setContentText("Smart Plug $shortMac: $status | Thresholds: $lowThreshold%-$highThreshold%")
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(false)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setSound(null) // Silent but visible
             .build()
             
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
