@@ -13,7 +13,7 @@ A lightweight Android app that automatically controls a SwitchBot Smart Plug Min
 - **Manual Test Controls**: Test ON/OFF commands directly from the app
 - **Service Toggle**: Start/stop battery monitoring service with visual feedback
 - **Auto-Start at Boot**: Automatically begin monitoring after device restart
-- **No Internet Required**: 100% offline operation
+- **No Internet Required**: 100% offline operation (Wi-Fi can be disabled after initial SwitchBot setup)
 
 ## Requirements
 
@@ -51,9 +51,25 @@ A lightweight Android app that automatically controls a SwitchBot Smart Plug Min
 
 ## Setup Instructions
 
-### 1. Get SwitchBot MAC Address
+### 1. Initial SwitchBot Setup (One-Time Only)
 
-Use a Bluetooth scanner app (like nRF Connect) to find your SwitchBot Smart Plug Mini's MAC address:
+**IMPORTANT**: Before using this app, you must first set up your SwitchBot Smart Plug Mini using the official SwitchBot app:
+
+1. **Download the official "SwitchBot" app** from Google Play Store
+2. **Create a SwitchBot account** and complete initial setup
+3. **Add your Smart Plug Mini** to the SwitchBot app following their setup process
+4. **Verify the plug works** in the official app (turn on/off, check connectivity)
+5. **Get the MAC address** from SwitchBot app:
+   - Open the SwitchBot app
+   - Go to your Smart Plug Mini settings
+   - Find and note the MAC address (format: XX:XX:XX:XX:XX:XX)
+6. **Optional cleanup**: Once you have the MAC address, you can:
+   - Uninstall the official SwitchBot app (no longer needed)
+   - Disable Wi-Fi if desired (this app works purely via Bluetooth)
+
+### Alternative: Get MAC Address via Bluetooth Scanner
+
+If you prefer not to use the official app or already have the plug configured:
 
 1. Install nRF Connect or similar BLE scanner
 2. Turn on your SwitchBot plug 
@@ -208,7 +224,9 @@ adb shell pm list permissions | grep bluetooth
 
 ## License
 
-This project is for educational and personal use. SwitchBot is a trademark of Wonderlabs Inc.
+This project is licensed under the BSD 3-Clause License - see the [LICENSE](LICENSE) file for details.
+
+**Disclaimer**: This software is not affiliated with, endorsed by, or connected to Wonderlabs Inc. or the SwitchBot brand. SwitchBot is a trademark of Wonderlabs Inc. This project is an independent implementation for educational and personal use purposes.
 
 ## Contributing
 
