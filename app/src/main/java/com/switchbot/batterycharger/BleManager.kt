@@ -97,22 +97,15 @@ object BleManager {
     
     @SuppressLint("MissingPermission")
     private fun attemptConnection(context: Context, mac: String, turnOn: Boolean, fromForeground: Boolean = false) {
-        // First try to connect to bonded device  
-        val bondedDevice = bluetoothAdapter?.bondedDevices?.find { it.address.equals(mac, ignoreCase = true) }
+        Log.d(TAG, "Attempting direct connection to device")
         
-        if (bondedDevice != null) {
-            Log.d(TAG, "Found bonded device, connecting directly")
-            connectToDevice(context, bondedDevice, turnOn)
+        // Try direct connection first using BluetoothAdapter.getRemoteDevice()
+        val device = bluetoothAdapter?.getRemoteDevice(mac)
+        if (device != null) {
+            Log.d(TAG, "Got device directly from MAC address, connecting")
+            connectDirectlyToDevice(context, device, turnOn)
         } else {
-            // For Android 15+, restrict background scanning only (allow foreground scanning)
-            if (Build.VERSION.SDK_INT >= 35 && !fromForeground) {
-                Log.w(TAG, "Device not bonded and Android 15+ detected - background scanning restricted")
-                Log.i(TAG, "Please bond the device in foreground first using the test buttons")
-                handleFailure()
-                return
-            }
-            
-            Log.d(TAG, "Device not bonded, scanning for device")
+            Log.d(TAG, "Failed to get device from MAC, falling back to scanning")
             scanForDevice(context, mac, turnOn)
         }
     }
@@ -132,7 +125,7 @@ object BleManager {
                         Log.d(TAG, "Found target device: ${device.address}")
                         scanner?.stopScan(this)
                         handler.removeCallbacksAndMessages(null) // Cancel timeout
-                        connectToDevice(context, device, turnOn)
+                        connectDirectlyToDevice(context, device, turnOn)
                     }
                 }
             }
@@ -169,14 +162,16 @@ object BleManager {
     }
     
     @SuppressLint("MissingPermission")
-    private fun connectToDevice(context: Context, device: BluetoothDevice, turnOn: Boolean) {
+    private fun connectDirectlyToDevice(context: Context, device: BluetoothDevice, turnOn: Boolean) {
         cleanupConnection()
-        
-        // Attempt to bond the device if not already bonded (helps with future background connections)
-        if (device.bondState == BluetoothDevice.BOND_NONE) {
-            Log.d(TAG, "Device not bonded, attempting to bond")
-            device.createBond()
-        }
+        Log.d(TAG, "Connecting directly to device (no bonding required)")
+        proceedWithGattConnection(context, device, turnOn)
+    }
+    
+    
+    @SuppressLint("MissingPermission")
+    private fun proceedWithGattConnection(context: Context, device: BluetoothDevice, turnOn: Boolean) {
+        Log.d(TAG, "Proceeding with GATT connection")
         
         val gattCallback = object : BluetoothGattCallback() {
             override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {

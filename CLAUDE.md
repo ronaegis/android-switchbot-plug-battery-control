@@ -254,5 +254,7 @@ In `AndroidManifest.xml` (inside `<manifest>`):
 - For production: Add ProGuard, sign release.
 - If issues: Check Android 12+ foreground service types.
 
+The switchbot mini plug DOES NOT NEED to be bonded in order to work over BLE.
+
 Follow this plan verbatim to generate the full codebase. Output the complete project files (Kotlin, XML, Gradle) in a ZIP or zipped response if possible, or as code blocks.
 

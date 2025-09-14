@@ -103,16 +103,10 @@ class MainActivity : AppCompatActivity() {
                     putBoolean("charging_on", false)
                 }.apply()
                 
-                // Check if device is bonded, if not bond it first before starting service
-                if (!isDeviceBonded(mac.uppercase())) {
-                    Toast.makeText(this, "Bonding device first...", Toast.LENGTH_SHORT).show()
-                    bondDeviceAndStartService(mac.uppercase(), saveBtn)
-                } else {
-                    startBatteryMonitorService()
-                    Toast.makeText(this, "Service started! App will now monitor battery.", Toast.LENGTH_LONG).show()
-                    updateButtonState(saveBtn)
-                    finish()
-                }
+                startBatteryMonitorService()
+                Toast.makeText(this, "Service started! App will now monitor battery.", Toast.LENGTH_LONG).show()
+                updateButtonState(saveBtn)
+                finish()
             }
         }
         
@@ -270,39 +264,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
     
-    private fun isDeviceBonded(mac: String): Boolean {
-        val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
-        val bluetoothAdapter = bluetoothManager.adapter ?: return false
-        
-        if (bluetoothAdapter.isEnabled) {
-            try {
-                @Suppress("MissingPermission")
-                val bondedDevices = bluetoothAdapter.bondedDevices
-                return bondedDevices.any { it.address.equals(mac, ignoreCase = true) }
-            } catch (e: SecurityException) {
-                // Permissions not available
-                return false
-            }
-        }
-        return false
-    }
-    
-    private fun bondDeviceAndStartService(mac: String, button: Button) {
-        // Use BleManager with foreground flag to bond the device
-        BleManager.sendCommand(this, mac, true, { success ->
-            runOnUiThread {
-                if (success) {
-                    Toast.makeText(this, "Device bonded successfully! Starting service...", Toast.LENGTH_SHORT).show()
-                    startBatteryMonitorService()
-                    Toast.makeText(this, "Service started! App will now monitor battery.", Toast.LENGTH_LONG).show()
-                    updateButtonState(button)
-                    finish()
-                } else {
-                    Toast.makeText(this, "Failed to bond device. Please check if device is nearby and try again.", Toast.LENGTH_LONG).show()
-                }
-            }
-        }, fromForeground = true)
-    }
     
     private fun startBatteryMonitorService() {
         val serviceIntent = Intent(this, BatteryMonitorService::class.java)
